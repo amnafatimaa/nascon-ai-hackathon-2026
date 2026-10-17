@@ -9,7 +9,7 @@ export function SiteFooter() {
           <span className="ornament" aria-hidden />
         </p>
         <p className="text-[11px] uppercase tracking-[0.16em] text-cream/60">
-          Sample foundation · 2026
+          DAYBREAK · 2026
         </p>
       </div>
     </footer>

@@ -16,10 +16,9 @@ export default function HomePage() {
         </p>
         <div className="double-rule mx-auto mt-8 max-w-3xl" />
         <p className="mx-auto mt-8 max-w-2xl text-center text-[16px] leading-8 text-ink-soft">
-          DAYBREAK gathers stories from many desks, learns what you care about,
-          and sets a personalized newspaper you can actually read. This
-          foundation is the masthead, the composing room, and a sample edition —
-          not a live newsroom yet.
+          DAYBREAK ingests live news feeds, curates stories using Gemini AI, and
+          dynamically ranks them based on your reading preferences to build a
+          personalized morning edition in real time.
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
@@ -72,7 +71,7 @@ export default function HomePage() {
             {
               n: "02",
               title: "The paper is gathered",
-              copy: "Later: feeds, summaries, and ranking. Today: a designed sample edition using mock stories.",
+              copy: "Live RSS feeds pull current stories, processed instantly with AI summaries and automated tagging.",
             },
             {
               n: "03",

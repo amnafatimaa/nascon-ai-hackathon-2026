@@ -217,7 +217,7 @@ export const todaysEdition: Edition = {
   id: "edition-2026-10-17",
   number: 1,
   volume: 1,
-  label: "Sample morning edition",
+  label: "Live edition",
   date: "2026-10-17T06:00:00.000Z",
   introHeadline: "A paper folded to your curiosity",
   intro:

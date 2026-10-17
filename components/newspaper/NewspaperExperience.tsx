@@ -44,7 +44,8 @@ function feedbackDelta(kind?: string): number {
 
 function sanitizeUrl(rawUrl?: string, source?: string): string {
   if (!rawUrl) return "https://news.google.com";
-  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) return rawUrl;
+  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://"))
+    return rawUrl;
   if (source?.toLowerCase().includes("bbc") && rawUrl.startsWith("/")) {
     return `https://www.bbc.com${rawUrl}`;
   }
@@ -94,7 +95,9 @@ export function NewspaperExperience() {
         // (newest copy wins because the query is ordered newest-first).
         const seen = new Set<string>();
         const uniqueArticles = articleData.filter((a: any) => {
-          const key = String(a.url || a.title || a.id).trim().toLowerCase();
+          const key = String(a.url || a.title || a.id)
+            .trim()
+            .toLowerCase();
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
@@ -133,7 +136,8 @@ export function NewspaperExperience() {
   }, []);
 
   const welcome = personalizeIntro(prefs.interests, prefs.customInterests);
-  const hasProfile = prefs.interests.length > 0 || prefs.customInterests.length > 0;
+  const hasProfile =
+    prefs.interests.length > 0 || prefs.customInterests.length > 0;
 
   // Effective weights = base preferences + persisted feedback.
   // Derived (not mutated), so toggling/switching feedback is idempotent
@@ -161,7 +165,9 @@ export function NewspaperExperience() {
         .filter((t) => !IGNORED_TAGS.has(t));
 
       // Declared interests first; otherwise what was learned from feedback.
-      const interests = tags.filter((t) => (baseWeights[t] ?? 0) > 0).map(pretty);
+      const interests = tags
+        .filter((t) => (baseWeights[t] ?? 0) > 0)
+        .map(pretty);
       const learned = tags.filter((t) => (weights[t] ?? 0) > 0).map(pretty);
 
       let relevanceExplanation = `Latest from ${article.source}`;
@@ -191,7 +197,7 @@ export function NewspaperExperience() {
   return (
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-12">
       <p className="mb-6 text-center text-[11px] uppercase tracking-[0.18em] text-muted">
-        {DEMO_NOTICE}
+        LIVE EDITION • POWERED BY AI & DYNAMIC PERSONALIZATION
       </p>
 
       <NewspaperHeader edition={todaysEdition} welcome={welcome} />
@@ -202,7 +208,7 @@ export function NewspaperExperience() {
 
       {!prefs.completed ? (
         <p className="mt-6 border border-rule bg-cream px-4 py-3 text-[14px] leading-6 text-ink-soft">
-          You are reading the sample edition without a completed profile.{" "}
+          {welcome}{" "}
           <Link
             href="/onboarding"
             className="text-burgundy underline decoration-rule underline-offset-4"
@@ -219,7 +225,9 @@ export function NewspaperExperience() {
             <LeadStory
               article={leadArticle as any}
               feedback={feedback[String(leadArticle.id)]}
-              onFeedback={(kind) => handleFeedback(String(leadArticle.id), kind)}
+              onFeedback={(kind) =>
+                handleFeedback(String(leadArticle.id), kind)
+              }
               showRelevance={hasProfile}
             />
           </div>
@@ -234,7 +242,9 @@ export function NewspaperExperience() {
                   article={article as any}
                   variant="compact"
                   feedback={feedback[String(article.id)]}
-                  onFeedback={(kind) => handleFeedback(String(article.id), kind)}
+                  onFeedback={(kind) =>
+                    handleFeedback(String(article.id), kind)
+                  }
                   showRelevance={hasProfile}
                 />
               ))}

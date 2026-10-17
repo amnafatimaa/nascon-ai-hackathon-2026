@@ -6,22 +6,31 @@
  * They do not imply that those systems are implemented yet.
  */
 
+// Slugs must match the TAXONOMY in app/api/ingest/route.ts exactly.
 export type InterestSlug =
   | "artificial-intelligence"
   | "technology"
   | "programming"
   | "robotics"
+  | "gadgets"
+  | "cybersecurity"
   | "science"
-  | "business"
-  | "finance"
-  | "world-news"
-  | "pakistan"
-  | "politics"
-  | "climate"
   | "space"
+  | "environment"
+  | "health"
+  | "business"
+  | "politics"
+  | "world-affairs"
+  | "education"
+  | "crime"
+  | "sports"
+  | "entertainment"
+  | "general"
+  | "finance"
+  | "pakistan"
+  | "climate"
   | "culture"
-  | "gaming"
-  | "health";
+  | "gaming";
 
 export type SummaryLength = "brief" | "detailed";
 export type EditionSize = "short" | "comprehensive";

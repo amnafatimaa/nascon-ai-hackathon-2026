@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Parser from "rss-parser";
 import { GoogleGenAI } from "@google/genai";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 
 // Give the route room to finish on serverless hosts (Vercel etc.)
 export const maxDuration = 60;
@@ -19,19 +19,21 @@ const parser = new Parser({
 });
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+// Model name lives in one place. Override with GEMINI_MODEL in .env.local if it changes again.
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+
 const FEEDS = [
-  // defaultTag is used when Gemini fails or returns nothing usable, so an article
-  // still carries a tag that can match real preferences.
   { name: "BBC World", url: "http://feeds.bbci.co.uk/news/world/rss.xml", defaultTag: "world-affairs" },
   { name: "TechCrunch", url: "https://techcrunch.com/feed/", defaultTag: "technology" },
   { name: "The Verge", url: "https://www.theverge.com/rss/index.xml", defaultTag: "technology" },
   { name: "BBC Science", url: "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml", defaultTag: "science" },
   { name: "Wired", url: "https://www.wired.com/feed/rss", defaultTag: "technology" },
+  { name: "Dawn", url: "https://www.dawn.com/feeds/home", defaultTag: "pakistan" },
+  { name: "Dawn Business", url: "https://www.dawn.com/feeds/business", defaultTag: "finance" },
+  { name: "BBC Business", url: "http://feeds.bbci.co.uk/news/business/rss.xml", defaultTag: "finance" },
+  { name: "BBC Politics", url: "http://feeds.bbci.co.uk/news/politics/rss.xml", defaultTag: "politics" },
 ];
 
-// Fixed tag vocabulary. This is what makes ranking work: the tags written here
-// must be the same strings used as keys in your preference weights
-// (DEFAULT_WEIGHTS and the onboarding interests). Edit this list to match.
 const TAXONOMY = [
   "artificial-intelligence",
   "technology",
@@ -51,9 +53,13 @@ const TAXONOMY = [
   "sports",
   "entertainment",
   "general",
+  "finance",
+  "pakistan",
+  "climate",
+  "culture",
+  "gaming",
 ];
 
-// Common variants Gemini might return, mapped onto the taxonomy.
 const ALIASES: Record<string, string> = {
   ai: "artificial-intelligence",
   ml: "artificial-intelligence",
@@ -63,10 +69,17 @@ const ALIASES: Record<string, string> = {
   software: "programming",
   gadget: "gadgets",
   security: "cybersecurity",
-  climate: "environment",
   world: "world-affairs",
   geopolitics: "world-affairs",
   sanctions: "world-affairs",
+  economy: "finance",
+  markets: "finance",
+  stocks: "finance",
+  "pakistan-news": "pakistan",
+  "climate-change": "climate",
+  games: "gaming",
+  "video-games": "gaming",
+  arts: "culture",
 };
 
 type RawArticle = {
@@ -81,15 +94,42 @@ type RawArticle = {
 function decodeHtmlEntities(text: string): string {
   if (!text) return "";
   return text
+    // Ampersands
+    .replace(/&#038;/g, "&")
+    .replace(/&#38;/g, "&")
+    .replace(/&amp;/g, "&")
+
+    // Single quotes & Apostrophes
     .replace(/&#8217;/g, "'")
     .replace(/&#8216;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&rsquo;/g, "'")
+    .replace(/&lsquo;/g, "'")
+
+    // Double quotes
     .replace(/&#8220;/g, '"')
     .replace(/&#8221;/g, '"')
-    .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&rdquo;/g, '"')
+    .replace(/&ldquo;/g, '"')
+
+    // Dashes & Hyphens
+    .replace(/&#8211;/g, "–")
+    .replace(/&#8212;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&mdash;/g, "—")
+
+    // Brackets & Miscellaneous symbols
     .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/&hellip;/g, "…")
+    .replace(/&#8230;/g, "…")
+    .replace(/&copy;/g, "©")
+    .replace(/&reg;/g, "®")
+    .replace(/&trade;/g, "™");
 }
 
 function stripHtml(text: string): string {
@@ -102,8 +142,6 @@ function extractFirstImgSrc(html: string): string | null {
   return match ? match[1] : null;
 }
 
-// When the RSS item has no image, read the article page's own preview image
-// (og:image / twitter:image), which is the picture the publisher chose for that story.
 async function fetchOgImage(pageUrl: string): Promise<string | null> {
   try {
     const res = await fetch(pageUrl, {
@@ -140,11 +178,11 @@ async function fetchFeed(feed: (typeof FEEDS)[number]): Promise<RawArticle[]> {
   const articles: RawArticle[] = [];
 
   for (const item of feedData.items.slice(0, 3)) {
-    if (!item.link) continue; // url is our dedupe key
+    if (!item.link) continue;
 
     const titleClean = decodeHtmlEntities(item.title || "Untitled");
-    const rawContent = stripHtml(
-      decodeHtmlEntities(item.contentSnippet || item.content || item.title || "")
+    const rawContent = decodeHtmlEntities(
+      stripHtml(item.contentSnippet || item.content || item.title || "")
     ).slice(0, 1500);
 
     const imageUrl =
@@ -165,62 +203,110 @@ async function fetchFeed(feed: (typeof FEEDS)[number]): Promise<RawArticle[]> {
   return articles;
 }
 
-async function enrich(article: RawArticle): Promise<{ summary: string; tags: string[] }> {
+const KEYWORD_TAGS: Record<string, RegExp> = {
+  finance: /\b(stocks?|markets?|inflation|econom\w*|bank|imf|budget|rupee|invest\w*|gdp|trade|tax\w*|psx)\b/i,
+  politics: /\b(election|parliament|minister|government|senate|president|opposition|vote|coalition)\b/i,
+  pakistan: /\b(pakistan\w*|islamabad|karachi|lahore|punjab|sindh|balochistan|khyber)\b/i,
+  climate: /\b(climate|global warming|emissions|carbon|net zero)\b/i,
+  gaming: /\b(video games?|gaming|gamers?|playstation|xbox|nintendo|esports?)\b/i,
+  culture: /\b(museum|exhibition|literature|novel|theatre|theater|festival|art gallery)\b/i,
+};
+
+function keywordTags(article: RawArticle): string[] {
+  const text = `${article.title} ${article.content}`;
+  return Object.entries(KEYWORD_TAGS)
+    .filter(([, re]) => re.test(text))
+    .map(([tag]) => tag);
+}
+
+async function enrich(article: RawArticle): Promise<{
+  summary_brief: string;
+  summary_detailed: string;
+  tags: string[];
+  geographic_scope: "local" | "regional" | "global";
+}> {
+  const kw = keywordTags(article);
+  const mustHave = article.defaultTag === "pakistan" ? ["pakistan"] : [];
+  const mergeTags = (aiTags: string[]) =>
+    Array.from(new Set([...mustHave, ...aiTags, ...kw])).slice(0, 4);
+
+  const fallbackTags = mergeTags([]);
+
   const fallback = {
-    summary:
-      article.content.length > 160
-        ? article.content.slice(0, 160) + "..."
-        : article.content || article.title,
-    tags: [article.defaultTag],
+    summary_brief: decodeHtmlEntities(
+      article.content.length > 120
+        ? article.content.slice(0, 120) + "..."
+        : article.content || article.title
+    ),
+    summary_detailed: decodeHtmlEntities(
+      article.content.length > 250
+        ? article.content.slice(0, 250) + "..."
+        : article.content || article.title
+    ),
+    tags: fallbackTags.length ? fallbackTags : [article.defaultTag],
+    geographic_scope: (fallbackTags.includes("pakistan") ? "regional" : "global") as
+      | "local"
+      | "regional"
+      | "global",
   };
 
   const prompt = `
-You are an editorial assistant for a modern morning newspaper.
-Summarize the article in exactly 2 concise sentences.
-Choose 1-4 tags for the article, using ONLY tags from this list:
-${TAXONOMY.join(", ")}
-Use "general" only if nothing else fits.
+You are an editorial assistant for a modern morning newspaper. Analyze the news article and produce a structured JSON object.
 
-Article Title: ${article.title}
-Article Content: ${article.content}
+Article Title: "${article.title}"
+Article Content: "${article.content}"
+
+Choose 2 to 4 specific tags ONLY from this allowed taxonomy:
+${TAXONOMY.join(", ")}
+
+Requirements:
+1. "summary_brief": A concise 2-sentence briefing (under 35 words) giving key facts for a quick scan.
+2. "summary_detailed": A full executive recap (3 to 5 sentences, around 80-110 words) giving key facts, background context, and implications.
+3. "tags": An array of 2 to 4 lowercase tags from the allowed taxonomy list above. Use "general" only if no other tag fits.
+4. "geographic_scope": Must be one of ["local", "regional", "global"].
 
 Respond ONLY in valid JSON format:
 {
-  "summary": "2 sentence summary",
-  "tags": ["tag1", "tag2"]
+  "summary_brief": "...",
+  "summary_detailed": "...",
+  "tags": ["tag1", "tag2"],
+  "geographic_scope": "global"
 }
 `;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: MODEL,
       contents: prompt,
       config: { responseMimeType: "application/json" },
     });
 
     const text = (response.text || "").replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(text);
-    const tags = normalizeTags(parsed.tags);
+    const tags = mergeTags(normalizeTags(parsed.tags));
 
-    if (typeof parsed.summary === "string" && parsed.summary.trim()) {
-      return { summary: parsed.summary.trim(), tags: tags.length ? tags : [article.defaultTag] };
-    }
+    return {
+      summary_brief:
+        typeof parsed.summary_brief === "string" && parsed.summary_brief.trim()
+          ? decodeHtmlEntities(parsed.summary_brief.trim())
+          : fallback.summary_brief,
+      summary_detailed:
+        typeof parsed.summary_detailed === "string" && parsed.summary_detailed.trim()
+          ? decodeHtmlEntities(parsed.summary_detailed.trim())
+          : fallback.summary_detailed,
+      tags: tags.length ? tags : [article.defaultTag],
+      geographic_scope: ["local", "regional", "global"].includes(parsed.geographic_scope)
+        ? parsed.geographic_scope
+        : fallback.geographic_scope,
+    };
   } catch (aiErr) {
     console.warn("AI generation error, falling back:", aiErr);
   }
   return fallback;
 }
 
-export async function POST(request: Request) {
-  // Optional guard: set INGEST_SECRET in your env and send it as the
-  // x-ingest-secret header. If the env var isn't set, this is skipped.
-  const secret = process.env.INGEST_SECRET;
-  if (secret && request.headers.get("x-ingest-secret") !== secret) {
-    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  }
-
+export async function POST() {
   try {
-    // Fetch all feeds in parallel; one failing feed doesn't sink the rest.
     const results = await Promise.allSettled(FEEDS.map(fetchFeed));
     const rawArticles: RawArticle[] = [];
     results.forEach((r, i) => {
@@ -228,18 +314,20 @@ export async function POST(request: Request) {
       else console.warn(`Skipping feed ${FEEDS[i].name}:`, r.reason);
     });
 
-    // De-duplicate by URL within this batch.
     const unique = Array.from(new Map(rawArticles.map((a) => [a.url, a])).values());
 
-    // Enrich in small parallel chunks (faster than sequential, gentler on rate limits).
     const processedArticles: Array<{
       title: string;
       source: string;
       summary: string;
+      summary_brief: string;
+      summary_detailed: string;
       tags: string[];
+      geographic_scope: string;
       url: string;
       image_url: string | null;
     }> = [];
+
     const CHUNK = 5;
     for (let i = 0; i < unique.length; i += CHUNK) {
       const chunk = unique.slice(i, i + CHUNK);
@@ -251,22 +339,25 @@ export async function POST(request: Request) {
       );
       chunk.forEach((article, j) => {
         processedArticles.push({
-          title: article.title,
+          title: decodeHtmlEntities(article.title),
           source: article.source,
-          summary: enriched[j].summary,
+          summary: enriched[j].summary_brief,
+          summary_brief: enriched[j].summary_brief,
+          summary_detailed: enriched[j].summary_detailed,
           tags: enriched[j].tags,
+          geographic_scope: enriched[j].geographic_scope,
           url: article.url,
           image_url: enriched[j].image_url,
         });
       });
     }
 
-    // Requires a unique constraint on articles.url (see SQL below).
-    // Re-running ingestion skips articles that already exist.
-    const { data, error } = await supabase
-      .from("articles")
-      .upsert(processedArticles, { onConflict: "url", ignoreDuplicates: true })
-      .select();
+    // Set ignoreDuplicates: false so existing articles update with clean entities
+    // Replace 'supabase' with 'supabaseAdmin' to bypass RLS policies during ingestion
+const { data, error } = await supabaseAdmin
+  .from("articles")
+  .upsert(processedArticles, { onConflict: "url", ignoreDuplicates: false })
+  .select();
 
     if (error) throw error;
 
@@ -282,4 +373,8 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return POST();
 }

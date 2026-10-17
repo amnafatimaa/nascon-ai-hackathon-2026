@@ -8,36 +8,51 @@ export function LeadStory({
   feedback,
   onFeedback,
   showRelevance,
+  summaryLength = "brief",
 }: {
-  article: Article;
+  article: Article & {
+    summary_brief?: string;
+    summary_detailed?: string;
+  };
   feedback?: ArticleFeedbackKind;
   onFeedback: (kind: ArticleFeedbackKind) => void;
   showRelevance: boolean;
+  summaryLength?: "brief" | "detailed";
 }) {
   const skipped = feedback === "skip" || feedback === "not_interested";
+
+  // Dynamic summary pick based on onboarding preference
+  const summaryText =
+    summaryLength === "detailed" && article.summary_detailed
+      ? article.summary_detailed
+      : article.summary_brief || article.summary;
 
   return (
     <article
       id={article.id}
-      className={`border-b border-ink pb-10 ${skipped ? "opacity-45" : ""}`}
+      className={`border-b-2 border-ink pb-10 ${skipped ? "opacity-45" : ""}`}
     >
-      <p className="text-[11px] uppercase tracking-[0.22em] text-burgundy">
-        {article.category} · {article.source}
-      </p>
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-burgundy font-bold">
+        <span className="bg-burgundy/10 px-2 py-0.5">Lead Story</span>
+        <span>•</span>
+        <span>{article.category}</span>
+        <span>•</span>
+        <span className="text-ink-soft">{article.source}</span>
+      </div>
 
-      <h2 className="mt-3 font-serif text-4xl leading-[1.12] tracking-tight md:text-5xl">
+      <h2 className="mt-3 font-serif text-4xl font-extrabold leading-[1.12] tracking-tight md:text-5xl text-ink">
         <a
           href={article.sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="decoration-1 underline-offset-4 hover:underline"
+          className="decoration-1 underline-offset-4 hover:underline hover:text-emerald-deep transition-colors"
         >
           {article.title}
         </a>
       </h2>
 
       {article.imageUrl ? (
-        <figure className="mt-6 overflow-hidden border border-rule bg-paper-deep">
+        <figure className="mt-6 overflow-hidden border-2 border-ink bg-paper-deep shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
           <div className="relative aspect-[16/9]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -45,28 +60,32 @@ export function LeadStory({
               alt=""
               referrerPolicy="no-referrer"
               className="absolute inset-0 h-full w-full object-cover"
-              // Dead or hotlink-blocked image: hide the figure rather than show a broken icon.
-              onError={(e) => e.currentTarget.closest("figure")?.classList.add("hidden")}
+              onError={(e) =>
+                e.currentTarget.closest("figure")?.classList.add("hidden")
+              }
             />
           </div>
-          <figcaption className="border-t border-rule px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-muted">
+          <figcaption className="border-t border-rule px-3 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
             Image via {article.source}
           </figcaption>
         </figure>
       ) : (
-        <ImagePlaceholder category={article.category} className="mt-6 aspect-[21/9]" />
+        <ImagePlaceholder
+          category={article.category}
+          className="mt-6 aspect-[21/9] border-2 border-ink"
+        />
       )}
 
-      <p className="drop-cap mt-6 text-[17px] leading-8 text-ink-soft">
-        {article.summary}
+      <p className="drop-cap mt-6 text-[17px] leading-8 text-ink-soft font-serif">
+        {summaryText}
       </p>
 
-      <p className="mt-4 text-[12px] uppercase tracking-[0.16em] text-muted">
+      <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-muted">
         {formatPublishedTime(article.publishedAt)}
       </p>
 
       {showRelevance && article.relevanceExplanation ? (
-        <p className="mt-4 border-l-2 border-burgundy pl-3 text-[13px] leading-6 italic text-ink-soft">
+        <p className="mt-4 border-l-2 border-burgundy pl-3 font-mono text-[12px] leading-6 italic text-ink-soft">
           Why this matters to you — {article.relevanceExplanation}
         </p>
       ) : null}

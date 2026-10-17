@@ -29,35 +29,19 @@ export function OnboardingFlow() {
     getOnboardingSnapshot,
     getOnboardingServerSnapshot,
   );
-  const [customDraft, setCustomDraft] = useState("");
 
   function update(partial: Partial<OnboardingPreferences>) {
     saveOnboardingPreferences({ ...prefs, ...partial });
   }
 
-  function addCustom() {
-    const value = customDraft.trim();
-    if (!value) return;
-    if (prefs.customInterests.includes(value)) {
-      setCustomDraft("");
-      return;
-    }
-    update({ customInterests: [...prefs.customInterests, value] });
-    setCustomDraft("");
-  }
-
   async function complete() {
     setIsSaving(true);
 
-    // Combine standard interest slugs and custom interests into one list
-    const allTopics = [...prefs.interests, ...prefs.customInterests];
-
     try {
-      // Write user preferences payload to Supabase user_preferences table
       const { error } = await supabase.from("user_preferences").insert([
         {
           topics: {
-            interests: allTopics,
+            interests: prefs.interests,
             summaryLength: prefs.summaryLength,
             editionSize: prefs.editionSize,
             geographicFocus: prefs.geographicFocus,
@@ -71,7 +55,6 @@ export function OnboardingFlow() {
     } catch (err) {
       console.error("Failed to sync preferences to Supabase:", err);
     } finally {
-      // Persist locally and navigate
       saveOnboardingPreferences({ ...prefs, completed: true });
       setIsSaving(false);
       router.push("/paper");
@@ -80,7 +63,7 @@ export function OnboardingFlow() {
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-12 md:px-8 md:py-16 selection:bg-burgundy selection:text-cream">
-      {/* Kicker Header */}
+      {/* Header Badge */}
       <div className="flex items-center gap-2">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald animate-pulse" />
         <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-burgundy font-bold">
@@ -129,28 +112,17 @@ export function OnboardingFlow() {
                 What belongs in your paper?
               </h2>
               <p className="mt-2 text-[15px] leading-7 text-ink-soft">
-                Select as many desks as you like. Custom beats and niche interests are welcome.
+                Select as many desks as you like.
               </p>
             </div>
             <InterestSelector
               selected={prefs.interests}
-              customInterests={prefs.customInterests}
-              customDraft={customDraft}
               onToggle={(slug) => {
                 const next = prefs.interests.includes(slug)
                   ? prefs.interests.filter((item) => item !== slug)
                   : [...prefs.interests, slug];
                 update({ interests: next });
               }}
-              onCustomDraftChange={setCustomDraft}
-              onAddCustom={addCustom}
-              onRemoveCustom={(value) =>
-                update({
-                  customInterests: prefs.customInterests.filter(
-                    (item) => item !== value,
-                  ),
-                })
-              }
             />
           </div>
         ) : null}
@@ -238,11 +210,9 @@ export function OnboardingFlow() {
               Your edition is folded.
             </h2>
             <p className="max-w-xl text-[15px] leading-7 text-ink-soft">
-              {prefs.interests.length + prefs.customInterests.length > 0
-                ? `We’ve locked in ${prefs.interests.length + prefs.customInterests.length} beat${
-                    prefs.interests.length + prefs.customInterests.length === 1
-                      ? ""
-                      : "s"
+              {prefs.interests.length > 0
+                ? `We’ve locked in ${prefs.interests.length} beat${
+                    prefs.interests.length === 1 ? "" : "s"
                   } for your morning issue, configured with ${prefs.summaryLength} summaries and a ${prefs.editionSize} paper layout.`
                 : "No specific beats selected yet. Your paper will start with general top headlines, which you can personalize anytime."}
             </p>

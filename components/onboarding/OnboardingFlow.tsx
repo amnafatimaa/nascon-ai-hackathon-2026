@@ -10,6 +10,7 @@ import {
   saveOnboardingPreferences,
   subscribeOnboarding,
 } from "@/lib/storage";
+import { supabase } from "@/lib/supabase";
 import type {
   EditionSize,
   GeographicFocus,
@@ -22,6 +23,7 @@ const STEPS = ["Welcome", "Interests", "Reading", "Ready"];
 export function OnboardingFlow() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [isSaving, setIsSaving] = useState(false);
   const prefs = useSyncExternalStore(
     subscribeOnboarding,
     getOnboardingSnapshot,
@@ -44,9 +46,36 @@ export function OnboardingFlow() {
     setCustomDraft("");
   }
 
-  function complete() {
-    saveOnboardingPreferences({ ...prefs, completed: true });
-    router.push("/paper");
+  async function complete() {
+    setIsSaving(true);
+
+    // Combine standard interest slugs and custom interests into one list
+    const allTopics = [...prefs.interests, ...prefs.customInterests];
+
+    try {
+      // 1. Write user preferences payload to Supabase user_preferences table
+      const { error } = await supabase.from("user_preferences").insert([
+        {
+          topics: {
+            interests: allTopics,
+            summaryLength: prefs.summaryLength,
+            editionSize: prefs.editionSize,
+            geographicFocus: prefs.geographicFocus,
+          },
+        },
+      ]);
+
+      if (error) {
+        console.error("Supabase insert error:", error);
+      }
+    } catch (err) {
+      console.error("Failed to sync preferences to Supabase:", err);
+    } finally {
+      // 2. Persist locally and navigate
+      saveOnboardingPreferences({ ...prefs, completed: true });
+      setIsSaving(false);
+      router.push("/paper");
+    }
   }
 
   return (
@@ -58,8 +87,7 @@ export function OnboardingFlow() {
         A few choices before the press run.
       </h1>
       <p className="mt-4 max-w-xl text-[15px] leading-7 text-ink-soft">
-        Selections stay on this device. There is no account yet — only a
-        preference file in local storage, ready for later personalization work.
+        Selections stay on this device and sync to your reader profile.
       </p>
 
       <div className="mt-10">
@@ -191,8 +219,7 @@ export function OnboardingFlow() {
                 : "You did not name interests yet. The sample paper remains general, and you can return anytime."}
             </p>
             <p className="max-w-xl text-[15px] leading-7 text-ink-soft">
-              Live ingestion and ranking are not connected. What you will see
-              next is a designed newspaper using demonstration stories.
+              Live ingestion and ranking are connected to your database preferences.
             </p>
           </div>
         ) : null}
@@ -202,7 +229,7 @@ export function OnboardingFlow() {
         <button
           type="button"
           onClick={() => setStep((value) => Math.max(1, value - 1))}
-          disabled={step === 1}
+          disabled={step === 1 || isSaving}
           className="text-[12px] uppercase tracking-[0.16em] text-muted disabled:opacity-30"
         >
           Back
@@ -219,9 +246,10 @@ export function OnboardingFlow() {
           <button
             type="button"
             onClick={complete}
-            className="border border-burgundy bg-burgundy px-5 py-2.5 text-[12px] uppercase tracking-[0.18em] text-cream"
+            disabled={isSaving}
+            className="border border-burgundy bg-burgundy px-5 py-2.5 text-[12px] uppercase tracking-[0.18em] text-cream disabled:opacity-50"
           >
-            Open today’s paper
+            {isSaving ? "Saving..." : "Open today’s paper"}
           </button>
         )}
       </div>

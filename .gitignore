@@ -9,6 +9,7 @@ dist/
 
 # Environment variables and secrets
 .env
+.env.local
 .env.*
 !.env.example
 
@@ -33,3 +34,4 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+supabase/.temp/

@@ -22,7 +22,8 @@ export function InterestSelector({
 }) {
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap gap-2">
+      {/* Standard Interest Chips */}
+      <div className="flex flex-wrap gap-2.5">
         {INTEREST_OPTIONS.map((option) => {
           const active = selected.includes(option.slug);
           return (
@@ -32,10 +33,10 @@ export function InterestSelector({
               onClick={() => onToggle(option.slug)}
               aria-pressed={active}
               className={cn(
-                "border px-3 py-2 text-left text-[13px] transition-colors",
+                "border-2 px-3.5 py-2 text-left text-[13px] font-medium transition-all duration-200 cursor-pointer",
                 active
-                  ? "border-ink bg-ink text-cream"
-                  : "border-rule bg-cream text-ink-soft hover:border-ink",
+                  ? "border-ink bg-ink text-cream shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  : "border-rule bg-paper-deep/40 text-ink-soft hover:bg-emerald-deep hover:border-emerald-deep hover:text-cream"
               )}
             >
               {option.label}
@@ -44,47 +45,58 @@ export function InterestSelector({
         })}
       </div>
 
+      {/* Custom Interest Input Form */}
       <form
-        className="border-t border-rule pt-6"
+        className="border-t-2 border-ink pt-6"
         onSubmit={(event) => {
           event.preventDefault();
           onAddCustom();
         }}
       >
-        <label htmlFor="custom-interest" className="text-[11px] uppercase tracking-[0.18em] text-muted">
-          Add a custom interest
+        <label
+          htmlFor="custom-interest"
+          className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted font-bold block"
+        >
+          Add a custom interest or beat
         </label>
         <div className="mt-3 flex gap-2">
           <input
             id="custom-interest"
             value={customDraft}
             onChange={(event) => onCustomDraftChange(event.target.value)}
-            placeholder="e.g. Karachi urbanism"
-            className="min-w-0 flex-1 border border-rule bg-cream px-3 py-2 text-sm outline-none focus:border-ink"
+            placeholder="e.g. Karachi urbanism, Quantum Computing"
+            className="min-w-0 flex-1 border-2 border-rule bg-paper-deep/20 px-3.5 py-2 text-sm text-ink outline-none transition-colors focus:border-ink placeholder:text-muted/60"
           />
           <button
             type="submit"
-            className="border border-ink bg-ink px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-cream"
+            className="border-2 border-ink bg-ink px-5 py-2 font-mono text-[11px] uppercase tracking-[0.18em] text-cream transition-all hover:bg-emerald-deep hover:border-emerald-deep hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] cursor-pointer"
           >
-            Add
+            Add Beat
           </button>
         </div>
       </form>
 
+      {/* Custom Selected Badges */}
       {customInterests.length > 0 ? (
-        <ul className="flex flex-wrap gap-2">
-          {customInterests.map((item) => (
-            <li key={item}>
-              <button
-                type="button"
-                onClick={() => onRemoveCustom(item)}
-                className="border border-burgundy/40 bg-cream px-3 py-1.5 text-[13px] text-burgundy"
-              >
-                {item} · remove
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted font-bold">
+            Custom Desks Added:
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {customInterests.map((item) => (
+              <li key={item}>
+                <button
+                  type="button"
+                  onClick={() => onRemoveCustom(item)}
+                  className="group inline-flex items-center gap-1.5 border-2 border-burgundy/40 bg-paper-deep/60 px-3 py-1 text-[12px] font-mono text-burgundy transition-all hover:bg-emerald-deep hover:border-emerald-deep hover:text-cream cursor-pointer"
+                >
+                  <span>{item}</span>
+                  <span className="text-[10px] opacity-70 group-hover:opacity-100">✕</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
     </div>
   );

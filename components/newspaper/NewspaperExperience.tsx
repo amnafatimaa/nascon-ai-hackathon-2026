@@ -8,7 +8,6 @@ import { ArticleCard } from "./ArticleCard";
 import { NewspaperHeader } from "./NewspaperHeader";
 import { supabase } from "@/lib/supabase";
 import { rankArticles, PreferenceWeights } from "@/lib/ranking";
-import { DEMO_NOTICE, personalizeIntro, todaysEdition } from "@/lib/mock-data";
 import {
   getFeedbackServerSnapshot,
   getFeedbackSnapshot,
@@ -42,10 +41,17 @@ function feedbackDelta(kind?: string): number {
   return 0;
 }
 
+function normalizeTag(tag: string): string {
+  return String(tag)
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
+
 function sanitizeUrl(rawUrl?: string, source?: string): string {
   if (!rawUrl) return "https://news.google.com";
-  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://"))
-    return rawUrl;
+  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) return rawUrl;
   if (source?.toLowerCase().includes("bbc") && rawUrl.startsWith("/")) {
     return `https://www.bbc.com${rawUrl}`;
   }
@@ -65,39 +71,53 @@ export function NewspaperExperience() {
   );
 
   const [dbArticles, setDbArticles] = useState<any[]>([]);
-  const [baseWeights, setBaseWeights] =
-    useState<PreferenceWeights>(DEFAULT_WEIGHTS);
+  const [baseWeights, setBaseWeights] = useState<PreferenceWeights>(DEFAULT_WEIGHTS);
 
   useEffect(() => {
     async function loadDataAndPreferences() {
-      const { data: prefData } = await supabase
-        .from("user_preferences")
-        .select("topics")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
       const initialWeights: PreferenceWeights = { ...DEFAULT_WEIGHTS };
-      if (prefData?.topics?.interests) {
-        prefData.topics.interests.forEach((interest: string) => {
-          initialWeights[interest.toLowerCase()] = 4;
+
+      // 1. Give priority to local device onboarding preferences (prefs)
+      const localInterests = [...(prefs.interests || []), ...(prefs.customInterests || [])];
+      
+      if (localInterests.length > 0) {
+        localInterests.forEach((interest: string) => {
+          const norm = normalizeTag(interest);
+          initialWeights[norm] = 5;
+          // Parent topic boosts for general tech tags
+          if (["artificial-intelligence", "programming", "robotics", "software"].includes(norm)) {
+            initialWeights["technology"] = (initialWeights["technology"] || 0) + 2;
+          }
         });
         setBaseWeights(initialWeights);
+      } else {
+        // Fallback to Supabase latest row if local profile isn't saved yet
+        const { data: prefData } = await supabase
+          .from("user_preferences")
+          .select("topics")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (prefData?.topics?.interests) {
+          prefData.topics.interests.forEach((interest: string) => {
+            const norm = normalizeTag(interest);
+            initialWeights[norm] = 5;
+          });
+          setBaseWeights(initialWeights);
+        }
       }
 
+      // 2. Fetch live articles from Supabase
       const { data: articleData, error } = await supabase
         .from("articles")
         .select("*")
         .order("created_at", { ascending: false });
 
       if (articleData && !error) {
-        // Hide duplicate rows left over from earlier ingestion runs
-        // (newest copy wins because the query is ordered newest-first).
         const seen = new Set<string>();
         const uniqueArticles = articleData.filter((a: any) => {
-          const key = String(a.url || a.title || a.id)
-            .trim()
-            .toLowerCase();
+          const key = String(a.url || a.title || a.id).trim().toLowerCase();
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
@@ -106,9 +126,10 @@ export function NewspaperExperience() {
         const mapped = uniqueArticles.map((a: any) => {
           const timestamp = a.created_at || new Date().toISOString();
           const cleanUrl = sanitizeUrl(a.url, a.source);
-          // No random stock photo when there's no image; the UI shows a themed placeholder.
           const imageUrl = a.image_url || a.imageUrl || null;
-          const articleTags = Array.isArray(a.tags) ? a.tags : ["news"];
+          const articleTags = Array.isArray(a.tags)
+            ? a.tags.map((t: string) => normalizeTag(t))
+            : ["news"];
 
           return {
             id: String(a.id),
@@ -133,22 +154,23 @@ export function NewspaperExperience() {
     }
 
     loadDataAndPreferences();
-  }, []);
+  }, [prefs]);
 
-  const welcome = personalizeIntro(prefs.interests, prefs.customInterests);
-  const hasProfile =
-    prefs.interests.length > 0 || prefs.customInterests.length > 0;
+  const welcome =
+    prefs.interests.length > 0 || prefs.customInterests.length > 0
+      ? `Folded this morning around ${[...prefs.interests, ...prefs.customInterests].slice(0, 3).join(", ")}.`
+      : "Folded this morning around curated top headlines.";
 
-  // Effective weights = base preferences + persisted feedback.
-  // Derived (not mutated), so toggling/switching feedback is idempotent
-  // and survives reloads.
+  const hasProfile = prefs.interests.length > 0 || prefs.customInterests.length > 0;
+
+  // Derive weights from base preferences + active user feedback clicks
   const weights = useMemo(() => {
     const next: PreferenceWeights = { ...baseWeights };
     for (const article of dbArticles) {
       const delta = feedbackDelta(feedback[String(article.id)]);
       if (!delta) continue;
       for (const tag of article.tags ?? []) {
-        const norm = String(tag).toLowerCase().trim();
+        const norm = normalizeTag(tag);
         if (IGNORED_TAGS.has(norm)) continue;
         next[norm] = (next[norm] ?? 1) + delta;
       }
@@ -161,13 +183,10 @@ export function NewspaperExperience() {
     const pretty = (t: string) => t.replace(/-/g, " ");
     return rankArticles(dbArticles, weights).map((article) => {
       const tags = (article.tags ?? [])
-        .map((t) => String(t).toLowerCase().trim())
+        .map((t) => normalizeTag(t))
         .filter((t) => !IGNORED_TAGS.has(t));
 
-      // Declared interests first; otherwise what was learned from feedback.
-      const interests = tags
-        .filter((t) => (baseWeights[t] ?? 0) > 0)
-        .map(pretty);
+      const interests = tags.filter((t) => (baseWeights[t] ?? 0) > 0).map(pretty);
       const learned = tags.filter((t) => (weights[t] ?? 0) > 0).map(pretty);
 
       let relevanceExplanation = `Latest from ${article.source}`;
@@ -195,23 +214,30 @@ export function NewspaperExperience() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-12">
-      <p className="mb-6 text-center text-[11px] uppercase tracking-[0.18em] text-muted">
+    <main className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-12 selection:bg-burgundy selection:text-cream">
+      <p className="mb-6 text-center text-[11px] font-mono uppercase tracking-[0.2em] text-muted">
         LIVE EDITION • POWERED BY AI & DYNAMIC PERSONALIZATION
       </p>
 
-      <NewspaperHeader edition={todaysEdition} welcome={welcome} />
+      <NewspaperHeader
+        edition={{
+          volume: 1,
+          number: 1,
+          date: "Saturday, October 17, 2026",
+        } as any}
+        welcome={welcome}
+      />
 
       <div className="mt-6">
         <EditionActions />
       </div>
 
       {!prefs.completed ? (
-        <p className="mt-6 border border-rule bg-cream px-4 py-3 text-[14px] leading-6 text-ink-soft">
+        <p className="mt-6 border border-rule bg-paper-deep/60 px-4 py-3 text-[14px] leading-6 text-ink-soft font-serif">
           {welcome}{" "}
           <Link
             href="/onboarding"
-            className="text-burgundy underline decoration-rule underline-offset-4"
+            className="text-burgundy underline decoration-rule underline-offset-4 font-semibold"
           >
             Create my newspaper
           </Link>{" "}
@@ -225,14 +251,12 @@ export function NewspaperExperience() {
             <LeadStory
               article={leadArticle as any}
               feedback={feedback[String(leadArticle.id)]}
-              onFeedback={(kind) =>
-                handleFeedback(String(leadArticle.id), kind)
-              }
+              onFeedback={(kind) => handleFeedback(String(leadArticle.id), kind)}
               showRelevance={hasProfile}
             />
           </div>
           <aside className="lg:col-span-4 lg:border-l lg:border-rule lg:pl-8">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-muted">
+            <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-muted font-bold">
               Also on the fold
             </p>
             <div className="mt-2 divide-y divide-rule">
@@ -242,9 +266,7 @@ export function NewspaperExperience() {
                   article={article as any}
                   variant="compact"
                   feedback={feedback[String(article.id)]}
-                  onFeedback={(kind) =>
-                    handleFeedback(String(article.id), kind)
-                  }
+                  onFeedback={(kind) => handleFeedback(String(article.id), kind)}
                   showRelevance={hasProfile}
                 />
               ))}

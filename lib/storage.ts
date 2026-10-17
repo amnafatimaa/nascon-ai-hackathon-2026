@@ -3,6 +3,9 @@ import type { ArticleFeedbackMap, OnboardingPreferences } from "./types";
 export const ONBOARDING_STORAGE_KEY = "daybreak.onboarding.v1";
 export const FEEDBACK_STORAGE_KEY = "daybreak.article-feedback.v1";
 
+// Static reference constants to avoid re-render loops in useSyncExternalStore
+const EMPTY_FEEDBACK: ArticleFeedbackMap = {};
+
 export const defaultPreferences: OnboardingPreferences = {
   interests: [],
   customInterests: [],
@@ -36,18 +39,18 @@ function readOnboarding(): OnboardingPreferences {
 }
 
 function readFeedback(): ArticleFeedbackMap {
-  if (!canUseStorage()) return {};
+  if (!canUseStorage()) return EMPTY_FEEDBACK;
 
   try {
     const raw = window.localStorage.getItem(FEEDBACK_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as ArticleFeedbackMap) : {};
+    return raw ? (JSON.parse(raw) as ArticleFeedbackMap) : EMPTY_FEEDBACK;
   } catch {
-    return {};
+    return EMPTY_FEEDBACK;
   }
 }
 
 let onboardingSnapshot = defaultPreferences;
-let feedbackSnapshot: ArticleFeedbackMap = {};
+let feedbackSnapshot: ArticleFeedbackMap = EMPTY_FEEDBACK;
 const onboardingListeners = new Set<() => void>();
 const feedbackListeners = new Set<() => void>();
 let memoryHydrated = false;
@@ -104,7 +107,7 @@ export function getFeedbackSnapshot() {
 }
 
 export function getFeedbackServerSnapshot(): ArticleFeedbackMap {
-  return {};
+  return EMPTY_FEEDBACK;
 }
 
 export function saveArticleFeedback(value: ArticleFeedbackMap) {

@@ -1,55 +1,71 @@
 "use client";
 
-import { ExternalLink, SkipForward, ThumbsDown, ThumbsUp } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { ArticleFeedbackKind } from "@/lib/types";
-
-const actions: {
-  kind: ArticleFeedbackKind;
-  label: string;
-  icon: typeof ThumbsUp;
-}[] = [
-  { kind: "more", label: "More like this", icon: ThumbsUp },
-  { kind: "not_interested", label: "Not interested", icon: ThumbsDown },
-  { kind: "skip", label: "Skip", icon: SkipForward },
-];
+import { ThumbsUp, ThumbsDown, ExternalLink } from "lucide-react";
 
 export function ArticleActions({
   sourceUrl,
   feedback,
   onFeedback,
 }: {
-  sourceUrl: string;
+  sourceUrl?: string;
   feedback?: ArticleFeedbackKind;
   onFeedback: (kind: ArticleFeedbackKind) => void;
 }) {
+  const isMore =
+    (feedback as string) === "more_like_this" || (feedback as string) === "more";
+  const isLess =
+    feedback === "not_interested" || (feedback as string) === "less";
+
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] uppercase tracking-[0.14em] text-muted">
-      {actions.map((action) => {
-        const Icon = action.icon;
-        const active = feedback === action.kind;
-        return (
-          <button
-            key={action.kind}
-            type="button"
-            onClick={() => onFeedback(action.kind)}
-            className={cn(
-              "inline-flex items-center gap-1.5 hover:text-ink",
-              active && "text-burgundy",
-            )}
-          >
-            <Icon size={13} strokeWidth={1.5} />
-            {action.label}
-          </button>
-        );
-      })}
-      <a
-        href={sourceUrl}
-        className="inline-flex items-center gap-1.5 text-burgundy hover:text-ink"
-      >
-        <ExternalLink size={13} strokeWidth={1.5} />
-        Read original
-      </a>
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-rule pt-3 text-[12px] font-sans">
+      {sourceUrl ? (
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1 whitespace-nowrap font-medium text-burgundy hover:underline cursor-pointer"
+        >
+          Read Original <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : (
+        <span />
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          aria-pressed={isMore}
+          onClick={(e) => {
+            e.stopPropagation();
+            onFeedback("more");
+          }}
+          className={`flex items-center gap-1 whitespace-nowrap rounded px-2.5 py-1 transition cursor-pointer font-medium ${
+            isMore
+              ? "bg-emerald-700 text-white font-bold"
+              : "bg-stone-200 text-stone-700 hover:bg-emerald-100 hover:text-emerald-800"
+          }`}
+        >
+          <ThumbsUp className="h-3.5 w-3.5" /> More like this
+        </button>
+
+        <button
+          type="button"
+          aria-pressed={isLess}
+          onClick={(e) => {
+            e.stopPropagation();
+            onFeedback("not_interested");
+          }}
+          className={`flex items-center gap-1 whitespace-nowrap rounded px-2.5 py-1 transition cursor-pointer font-medium ${
+            isLess
+              ? "bg-rose-700 text-white font-bold"
+              : "bg-stone-200 text-stone-700 hover:bg-rose-100 hover:text-rose-800"
+          }`}
+        >
+          <ThumbsDown className="h-3.5 w-3.5" /> Not interested
+        </button>
+      </div>
     </div>
   );
 }

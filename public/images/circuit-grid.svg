@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Abstract circuit grid illustration">
+  <rect width="800" height="500" fill="#dfe3d4"/>
+  <g fill="none" stroke="#3d4f3f" stroke-width="2" opacity="0.55">
+    <path d="M40 80 H280 V220 H520 V80 H760"/>
+    <path d="M40 300 H180 V420 H420 V300 H760"/>
+    <path d="M400 40 V460"/>
+  </g>
+  <circle cx="280" cy="220" r="10" fill="#7c2d2d"/>
+  <circle cx="520" cy="80" r="8" fill="#9a4a32"/>
+  <circle cx="420" cy="300" r="8" fill="#3d4f3f"/>
+</svg>

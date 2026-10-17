@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Night observatory illustration">
+  <rect width="800" height="500" fill="#2a3238"/>
+  <circle cx="140" cy="90" r="3" fill="#f3ead8"/>
+  <circle cx="280" cy="60" r="2" fill="#f3ead8"/>
+  <circle cx="500" cy="80" r="2.5" fill="#f3ead8"/>
+  <circle cx="680" cy="50" r="2" fill="#f3ead8"/>
+  <circle cx="600" cy="120" r="2" fill="#f3ead8"/>
+  <path d="M250 430 L400 160 L550 430 Z" fill="#d9c7a6"/>
+  <path d="M400 160 L400 120 L470 150 Z" fill="#9a4a32"/>
+  <rect y="420" width="800" height="80" fill="#1c1612"/>
+</svg>

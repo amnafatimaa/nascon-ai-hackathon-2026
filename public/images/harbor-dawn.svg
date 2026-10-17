@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Harbor at dawn illustration">
+  <rect width="800" height="500" fill="#e4d3ba"/>
+  <rect y="300" width="800" height="200" fill="#6a7e86"/>
+  <rect x="120" y="210" width="28" height="120" fill="#3f372f"/>
+  <rect x="220" y="160" width="36" height="170" fill="#2b342c"/>
+  <rect x="310" y="200" width="22" height="130" fill="#5c4630"/>
+  <path d="M0 320 C160 300 280 340 420 318 C580 292 680 330 800 310 L800 500 L0 500 Z" fill="#4d6570"/>
+  <circle cx="620" cy="120" r="46" fill="#c9a27a"/>
+</svg>

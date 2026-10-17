@@ -1,68 +1,36 @@
-# DAYBREAK
+# 🌅 DAYBREAK
 
-Your world. In print. Every morning.
+*Your world. In print. Every morning.*
 
-DAYBREAK is an AI-powered personalized daily newspaper. It is designed to gather stories from many sources, learn a reader’s interests, and present them as a morning paper rather than a scrolling feed.
+DAYBREAK is an AI-powered personalized daily morning newspaper built with Next.js and Supabase. Instead of endless infinite-scrolling social feeds, DAYBREAK aggregates live news from top publishers, processes and categorizes stories using Google Gemini AI, and delivers a curated morning edition tailored directly to user preferences.
 
-This repository currently contains the **initial product foundation**: an editorial frontend, a multi-step onboarding flow, a sample newspaper, and an archive shell. Live news ingestion, ranking, accounts, and PDF generation are not connected yet.
+---
 
-## Current technologies
+## 🚀 Key Features
 
-- Next.js (App Router)
-- TypeScript
-- Tailwind CSS
-- Lucide icons
-- Local storage for onboarding and article feedback
+* **Interactive Onboarding:** Tailor your reading profile by selecting topic desks, location focus, and reading style.
+* **Database Persisted Profiles:** Onboarding preferences are synced directly to Supabase (`user_preferences` table).
+* **Automated AI Ingestion Pipeline:** An automated pipeline (`/api/ingest`) fetches live RSS feeds (TechCrunch, Hacker News, BBC News), applies network fault tolerance, and cleans feed content.
+* **AI Summarization & Tagging:** Uses Google Gemini AI (`gemini-2.5-flash`) to generate concise 2-sentence story summaries and automated topic tags.
+* **Modern Editorial Experience:** Serif and sans typography bundled at build time via `next/font` for a distraction-free, print-inspired reading interface.
 
-Serif and sans typefaces are bundled at build time through `next/font` and fall back to Georgia / system UI if needed. The running app does not call a font CDN.
+---
 
-## Install
+## 🛠️ Tech Stack
+
+* **Framework:** Next.js (App Router, TypeScript, Turbopack)
+* **Styling:** Tailwind CSS & Lucide Icons
+* **Database:** Supabase (PostgreSQL, Row-Level Security, `@supabase/supabase-js`)
+* **News Ingestion:** `rss-parser` with feed-level error trapping and timeouts
+* **AI Engine:** Google Gemini AI (`gemini-2.5-flash` via `@google/genai`)
+
+---
+
+## 🏁 Getting Started
+
+### 1. Installation
+
+Clone the repository and install dependencies with the npm shortcut:
 
 ```bash
 npm install
-```
-
-## Run the development server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## Other commands
-
-```bash
-npm run lint
-npm run typecheck
-npm run build
-npm start
-```
-
-## Main routes
-
-| Route | Purpose |
-| --- | --- |
-| `/` | Landing page and product introduction |
-| `/onboarding` | Interest and reading-preference flow |
-| `/paper` | Sample daily newspaper |
-| `/archive` | Demonstration list of previous editions |
-
-## What is mock data
-
-The newspaper, archive, headlines, summaries, sources, timestamps, and illustrations are **demonstration content** in `lib/mock-data.ts`. They are not verified reporting and are not fetched from publishers.
-
-Onboarding choices and “more like this / not interested / skip” signals are stored in the browser with `localStorage`. They do not train a model yet.
-
-Download PDF is intentionally marked coming soon.
-
-## Planned next stages
-
-1. RSS ingestion and article normalization
-2. Deduplication, categorization, and summarization
-3. Ranking against a stored interest profile
-4. Persisted daily editions
-5. PDF export
-6. Accounts and long-term reading history
-
-See [docs/architecture.md](docs/architecture.md) for the intended shape of those systems.

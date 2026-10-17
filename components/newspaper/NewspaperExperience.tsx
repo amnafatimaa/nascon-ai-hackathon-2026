@@ -26,6 +26,8 @@ const DEFAULT_WEIGHTS: PreferenceWeights = {
   robotics: 3,
 };
 
+const ARTICLES_PER_PAGE = 13;
+
 // Tags too vague to learn from or to claim a "match" on.
 const IGNORED_TAGS = new Set(["general", "news"]);
 
@@ -72,13 +74,14 @@ export function NewspaperExperience() {
 
   const [dbArticles, setDbArticles] = useState<any[]>([]);
   const [baseWeights, setBaseWeights] = useState<PreferenceWeights>(DEFAULT_WEIGHTS);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     async function loadDataAndPreferences() {
       const initialWeights: PreferenceWeights = { ...DEFAULT_WEIGHTS };
 
       // 1. Give priority to local device onboarding preferences (prefs)
-      const localInterests = [...(prefs.interests || []), ...(prefs.customInterests || [])];
+      const localInterests = prefs.interests || [];
       
       if (localInterests.length > 0) {
         localInterests.forEach((interest: string) => {
@@ -157,11 +160,11 @@ export function NewspaperExperience() {
   }, [prefs]);
 
   const welcome =
-    prefs.interests.length > 0 || prefs.customInterests.length > 0
-      ? `Folded this morning around ${[...prefs.interests, ...prefs.customInterests].slice(0, 3).join(", ")}.`
+    prefs.interests.length > 0
+      ? `Folded this morning around ${prefs.interests.slice(0, 3).join(", ")}.`
       : "Folded this morning around curated top headlines.";
 
-  const hasProfile = prefs.interests.length > 0 || prefs.customInterests.length > 0;
+  const hasProfile = prefs.interests.length > 0;
 
   // Derive weights from base preferences + active user feedback clicks
   const weights = useMemo(() => {
@@ -199,9 +202,18 @@ export function NewspaperExperience() {
     });
   }, [dbArticles, weights, baseWeights]);
 
-  const leadArticle = rankedArticles[0];
-  const secondaryArticles = rankedArticles.slice(1, 4);
-  const lowerArticles = rankedArticles.slice(4);
+  // Pagination Math
+  const totalPages = Math.ceil(rankedArticles.length / ARTICLES_PER_PAGE);
+  const startIndex = (currentPage - 1) * ARTICLES_PER_PAGE;
+  
+  // Get the 9 articles for the current page
+  const pageArticles = rankedArticles.slice(startIndex, startIndex + ARTICLES_PER_PAGE);
+
+  // On Page 1, split into Lead (1), Secondary (3), and Lower (5)
+  // On Pages 2+, display all 9 in standard grid layout
+  const leadArticle = currentPage === 1 ? pageArticles[0] : null;
+  const secondaryArticles = currentPage === 1 ? pageArticles.slice(1, 4) : [];
+  const lowerArticles = currentPage === 1 ? pageArticles.slice(4) : pageArticles;
 
   function handleFeedback(articleId: string, kind: ArticleFeedbackKind) {
     const next = { ...feedback };
@@ -213,6 +225,11 @@ export function NewspaperExperience() {
     saveArticleFeedback(next);
   }
 
+  function handlePageChange(newPage: number) {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-12 selection:bg-burgundy selection:text-cream">
       <p className="mb-6 text-center text-[11px] font-mono uppercase tracking-[0.2em] text-muted">
@@ -222,7 +239,7 @@ export function NewspaperExperience() {
       <NewspaperHeader
         edition={{
           volume: 1,
-          number: 1,
+          number: currentPage,
           date: "Saturday, October 17, 2026",
         } as any}
         welcome={welcome}
@@ -245,6 +262,7 @@ export function NewspaperExperience() {
         </p>
       ) : null}
 
+      {/* Page 1 Hero Layout: Lead Article + Side Columns */}
       {leadArticle ? (
         <div className="mt-10 grid gap-10 lg:grid-cols-12">
           <div className="lg:col-span-8">
@@ -275,11 +293,14 @@ export function NewspaperExperience() {
         </div>
       ) : null}
 
+      {/* Lower Articles Grid */}
       {lowerArticles.length > 0 ? (
-        <section className="mt-14 border-t-2 border-ink pt-8">
-          <h2 className="font-serif text-2xl font-bold tracking-tight text-ink mb-6">
-            In Depth & Related Coverage
-          </h2>
+        <section className={`mt-14 ${currentPage === 1 ? "border-t-2 border-ink pt-8" : ""}`}>
+          {currentPage === 1 ? (
+            <h2 className="font-serif text-2xl font-bold tracking-tight text-ink mb-6">
+              In Depth & Related Coverage
+            </h2>
+          ) : null}
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {lowerArticles.map((article) => (
               <ArticleCard
@@ -293,6 +314,54 @@ export function NewspaperExperience() {
             ))}
           </div>
         </section>
+      ) : null}
+
+      {/* Google-Style Newspaper Pagination */}
+      {totalPages > 1 ? (
+        <div className="mt-16 flex flex-col items-center justify-center gap-3 border-t-2 border-ink pt-8 font-mono text-xs">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => handlePageChange(currentPage - 1)}
+              className="border-2 border-ink bg-paper-deep/60 px-3.5 py-2 font-mono text-[11px] uppercase tracking-wider text-ink transition-all hover:bg-ink hover:text-cream disabled:opacity-30 disabled:hover:bg-paper-deep/60 disabled:hover:text-ink cursor-pointer"
+            >
+              ← Prev
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+              const active = pageNum === currentPage;
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => handlePageChange(pageNum)}
+                  className={`min-w-[38px] h-[38px] border-2 font-mono text-xs font-bold transition-all cursor-pointer ${
+                    active
+                      ? "border-ink bg-ink text-cream shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                      : "border-rule bg-paper-deep/40 text-ink hover:border-ink hover:bg-paper-deep"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => handlePageChange(currentPage + 1)}
+              className="border-2 border-ink bg-paper-deep/60 px-3.5 py-2 font-mono text-[11px] uppercase tracking-wider text-ink transition-all hover:bg-ink hover:text-cream disabled:opacity-30 disabled:hover:bg-paper-deep/60 disabled:hover:text-ink cursor-pointer"
+            >
+              Next →
+            </button>
+          </div>
+
+          <p className="mt-2 text-[11px] font-mono text-muted uppercase tracking-widest">
+            Page <span className="font-bold text-ink">{currentPage}</span> of{" "}
+            <span className="font-bold text-ink">{totalPages}</span>
+          </p>
+        </div>
       ) : null}
     </main>
   );

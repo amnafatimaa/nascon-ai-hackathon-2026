@@ -244,8 +244,13 @@ body {
 }
 
 @media print {
-  body {
-    background: #fff;
+  body, .newspaper-page {
+    /* Set your exact cream color hex code */
+    background-color: #fbf9f5 !important; 
+    
+    /* Crucial: Forces browsers (Chrome, Firefox, Safari) to print background colors */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 
